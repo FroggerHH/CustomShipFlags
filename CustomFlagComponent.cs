@@ -2,47 +2,50 @@
 using System;
 using System.Collections;
 using UnityEngine;
+using static CustomShipFlags.Plugin;
 
 #pragma warning disable CS8632
 namespace CustomShipFlags
 {
     public class CustomFlagComponent : MonoBehaviour, Interactable, TextReceiver, Hoverable
     {
-        private ZNetView? m_nview;
+        private ZNetView m_nview;
         private Renderer renderer;
         private BoxCollider collider;
 
         private void Awake()
         {
             m_nview = transform.parent.parent.parent.parent.parent.gameObject.GetComponent<ZNetView>();
-            m_nview.Register("SetFlagUrl", new Action<long, string>(RPC_SetCustomFlag));
+            m_nview.Register("SetFlagUrl", new Action<long>(RPC_SetCustomFlag));
             renderer = GetComponent<Renderer>();
             collider = gameObject.AddComponent<BoxCollider>();
             collider.isTrigger = true;
             collider.center = new(0, -6.4f, 0);
             collider.size = new(-0.23f, 21, 4);
 
-            Plugin._self.Config.ConfigReloaded += (_, _) => { LoadSavedTextureFromURL(); };
+            _self.Config.ConfigReloaded += (_, _) => { LoadSavedTextureFromURL(); };
+        }
 
-
+        private void Start()
+        {
             LoadSavedTextureFromURL();
         }
 
         public bool Interact(Humanoid human, bool hold, bool alt)
         {
-            if (Plugin.useOnlyServerFlag)
+            if(Plugin.useOnlyServerFlag)
             {
-                human?.Message(MessageHud.MessageType.Center, "$piece_noaccess", 0, null);
+                human.Message(MessageHud.MessageType.Center, "$piece_noaccess", 0, null);
                 return false;
             }
 
-            if (hold)
+            if(hold)
             {
                 return false;
             }
-            if (!PrivateArea.CheckAccess(transform.position, 0f, true, false))
+            if(!PrivateArea.CheckAccess(transform.position, 0f, true, false))
             {
-                human?.Message(MessageHud.MessageType.Center, "$piece_noaccess", 0, null);
+                human.Message(MessageHud.MessageType.Center, "$piece_noaccess", 0, null);
                 return true;
             }
             TextInput.instance.RequestText(this, "Enter Texture Url", 9999);
@@ -50,37 +53,39 @@ namespace CustomShipFlags
         }
         public string GetText()
         {
-            return m_nview?.GetZDO()?.GetString("TextureUrl", "");
+            if(!m_nview) return "";
+            return m_nview.GetZDO().GetString("TextureUrl", "");
         }
         public void SetText(string text)
         {
-            if (!m_nview.IsValid())
+            _self.Debug($"SetText {text}");
+            if(!m_nview.IsValid())
             {
                 return;
             }
-            m_nview?.InvokeRPC("SetFlagUrl", new object[]
-            {
-                text
-            });
+            m_nview.GetZDO().Set("TextureUrl", text);
+            m_nview.InvokeRPC("SetFlagUrl");
         }
-        void RPC_SetCustomFlag(long sender, string url)
+
+        void RPC_SetCustomFlag(long sender)
         {
-            if (!m_nview.IsValid() || !m_nview.IsOwner())
+            string url = GetText();
+            if(!m_nview.IsValid() || !m_nview.IsOwner())
             {
                 return;
             }
-            if (GetText() == url)
-            {
-                return;
-            }
-            m_nview.GetZDO().Set("TextureUrl", url);
             SetTextureFromURL(url);
         }
 
         public bool UseItem(Humanoid user, ItemDrop.ItemData item) { return false; }
         public string GetHoverText()
         {
-            return "Set Flag Url";
+            if(!Plugin.useOnlyServerFlag) return "Set Flag Url";
+            else
+            {
+                if(Player.m_localPlayer.InDebugFlyMode()) return "Set Flag Url";
+                else return "";
+            }
         }
         public string GetHoverName()
         {
@@ -90,34 +95,35 @@ namespace CustomShipFlags
 
         public void SetTextureFromURL(string url)
         {
-            if (string.IsNullOrEmpty(url) || string.IsNullOrWhiteSpace(url)) return;
-            StartCoroutine(SetTextureFromURLIEnumerator(url, renderer));
+            string urlFormated = url.Replace(" ", "");
+            if(string.IsNullOrEmpty(urlFormated) || string.IsNullOrWhiteSpace(urlFormated)) return;
+            StartCoroutine(SetTextureFromURLIEnumerator(urlFormated, renderer));
         }
+
+        private bool isUrlCorrect(string url) => !string.IsNullOrEmpty(url) && !string.IsNullOrWhiteSpace(url) && (url.EndsWith(".jpg") || url.EndsWith(".png")|| url.EndsWith(".jpeg"));
+
         public void LoadSavedTextureFromURL()
         {
-            string url;
-            if (Plugin.useOnlyServerFlag)
+            string url = GetText().Replace(" ", "");
+            if(useOnlyServerFlag)
             {
-                url = Plugin.serverFlagUrl;
+                url = serverFlagUrl;
             }
             else
             {
-                url = GetText();
-                if (string.IsNullOrEmpty(url) || string.IsNullOrWhiteSpace(url))
+                if(!isUrlCorrect(url))
                 {
-                    url = Plugin.serverFlagUrl;
+                    url = serverFlagUrl;
+                    url = url.Replace(" ", "");
                 }
-                if (string.IsNullOrEmpty(url) || string.IsNullOrWhiteSpace(url))
+                if(isUrlCorrect(url))
                 {
-                    Plugin._self.Debug(LogLevel.Warning, "The server flag is missing, the vanilla version will be used.");
+                    _self.Debug(LogLevel.Warning, "The server flag is missing, the vanilla version will be used.");
                     return;
                 }
             }
 
-            if (url != GetText())
-            {
-                m_nview?.GetZDO()?.Set("TextureUrl", url);
-            }
+            m_nview.GetZDO().Set("TextureUrl", url);
 
             StartCoroutine(SetTextureFromURLIEnumerator(url, renderer));
         }

@@ -114,14 +114,5 @@ namespace CustomShipFlags
                 __instance.transform.Find(path)?.gameObject.AddComponent<CustomFlagComponent>();
             }
         }
-
-        public class ConfigurationManagerAttributes
-        {
-            public int? Order;
-            public bool? HideSettingName;
-            public bool? HideDefaultButton;
-            public string? DispName;
-            public Action<ConfigEntryBase>? CustomDrawer;
-        }
     }
 }
