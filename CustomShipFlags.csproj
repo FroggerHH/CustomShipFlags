@@ -76,6 +76,7 @@
     <Compile Include="ConfigurationManagerAttributes.cs" />
     <Compile Include="CustomFlagComponent.cs" />
     <Compile Include="GlobalSuppressions.cs" />
+    <Compile Include="Patch.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
